@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
+    id 'kotlin-kapt'
 }
 
 android {
@@ -36,14 +37,17 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_21
-        targetCompatibility JavaVersion.VERSION_21
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
     }
+    
+    kotlinOptions {
+        jvmTarget = '11'
+        freeCompilerArgs += ['-opt-in=kotlin.ExperimentalStdlibApi']
+    }
+    
     buildFeatures {
         viewBinding true
-    }
-    kotlinOptions {
-        jvmTarget = '21'
     }
 
     applicationVariants.configureEach { variant ->
@@ -61,15 +65,35 @@ dependencies {
     implementation libs.material
     implementation libs.constraintlayout
     implementation libs.core.ktx
+    
+    // Room Database
+    implementation libs.room.runtime
+    implementation libs.room.ktx
+    annotationProcessor libs.room.compiler
+    kapt libs.room.compiler
+    
+    // Kotlin Coroutines
+    implementation libs.kotlin.coroutines.android
+    
+    // Lifecycle
+    implementation libs.lifecycle.runtime.ktx
+    implementation libs.lifecycle.viewmodel.ktx
+    implementation libs.lifecycle.livedata.ktx
+    
+    // Gson & Retrofit
+    implementation libs.gson
+    implementation libs.retrofit
+    implementation libs.retrofit.gson
+    implementation libs.okhttp
+    implementation libs.okhttp.logging
+    
+    // Navigation
+    implementation libs.navigation.fragment
+    implementation libs.navigation.ui
+    
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core
-
-    implementation "androidx.preference:preference-ktx:1.1.1"
-    
-    implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.3.1"
-    implementation "androidx.lifecycle:lifecycle-livedata-ktx:2.3.1"
-    implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.3.1"
 
     
     implementation 'androidx.recyclerview:recyclerview:1.2.1'

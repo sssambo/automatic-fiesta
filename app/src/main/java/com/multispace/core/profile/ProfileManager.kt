@@ -2,6 +2,7 @@ package com.multispace.core.profile
 
 import android.content.Context
 import android.util.Log
+import com.multispace.core.util.DeviceIdentifierHelper
 import com.multispace.data.local.MultiSpaceDatabase
 import com.multispace.data.local.ProfileEntity
 import com.multispace.data.local.ProfileState
@@ -9,11 +10,11 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.io.File
-import java.util.*
 
 /**
  * Central manager for profile CRUD operations and lifecycle
  * Handles profile creation, deletion, state management
+ * Uses real device identifiers instead of generated UUIDs
  */
 class ProfileManager(
     private val context: Context,
@@ -23,19 +24,25 @@ class ProfileManager(
     private val profileDao = database.profileDao()
     private val profileRomBasePath = File(context.filesDir, "profiles").absolutePath
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val deviceIdHelper = DeviceIdentifierHelper(context)
     
     /**
      * Create a new profile with forced Google account setup
+     * Uses real device identifiers from Android system
      */
     suspend fun createProfile(request: CreateProfileRequest): Result<ProfileModel> = withContext(Dispatchers.IO) {
         try {
             Log.d(TAG, "Creating profile: ${request.profileName}")
             
-            // Generate unique identifiers
-            val androidId = generateUniqueAndroidId()
-            val imei = generateUniqueImei()
-            val macAddress = generateUniqueMacAddress()
-            val serialNumber = generateUniqueSerialNumber()
+            // Get real device identifiers instead of generating fake UUIDs
+            val androidId = deviceIdHelper.getAndroidId()
+            val imei = deviceIdHelper.getImei()
+            val macAddress = deviceIdHelper.getMacAddress()
+            val serialNumber = deviceIdHelper.getSerialNumber()
+            
+            if (androidId.isBlank()) {
+                return@withContext Result.failure(Exception("Failed to retrieve Android ID"))
+            }
             
             val romPath = File(profileRomBasePath, "profile_${System.currentTimeMillis()}").absolutePath
             
@@ -62,6 +69,10 @@ class ProfileManager(
             
             val profileId = profileDao.insertProfile(entity)
             Log.d(TAG, "Profile created with ID: $profileId")
+            Log.d(TAG, "  Android ID: $androidId")
+            Log.d(TAG, "  IMEI: ${imei.take(5)}...")
+            Log.d(TAG, "  MAC: $macAddress")
+            Log.d(TAG, "  Serial: $serialNumber")
             
             val model = entity.copy(id = profileId.toInt()).toModel()
             Result.success(model)
@@ -164,34 +175,6 @@ class ProfileManager(
      */
     suspend fun getProfileByAndroidId(androidId: String): ProfileModel? = withContext(Dispatchers.IO) {
         profileDao.getProfileByAndroidId(androidId)?.toModel()
-    }
-    
-    /**
-     * Generate unique Android ID (format: hex string similar to real Android ID)
-     */
-    private fun generateUniqueAndroidId(): String {
-        return UUID.randomUUID().toString().replace("-", "").take(16)
-    }
-    
-    /**
-     * Generate unique IMEI (15 digits)
-     */
-    private fun generateUniqueImei(): String {
-        return (0..14).map { (0..9).random() }.joinToString("")
-    }
-    
-    /**
-     * Generate unique MAC address
-     */
-    private fun generateUniqueMacAddress(): String {
-        return (0..5).map { String.format("%02x", Random().nextInt(256)) }.joinToString(":")
-    }
-    
-    /**
-     * Generate unique serial number
-     */
-    private fun generateUniqueSerialNumber(): String {
-        return UUID.randomUUID().toString().take(20).toUpperCase()
     }
     
     fun close() {

@@ -3,20 +3,24 @@ package com.multispace.core.gsf
 import android.content.Context
 import android.util.Log
 import com.multispace.core.profile.ProfileModel
+import com.multispace.core.util.GmsConnector
+import com.multispace.core.util.TokenEncryption
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import java.util.*
 
 /**
  * Enforces mandatory Google account setup on profile creation
+ * Uses real Google Sign-In via Google Play Services
  * Blocks profile activation until Google login is successful
  */
 class AccountEnforcer(private val context: Context) {
     private val TAG = "AccountEnforcer"
+    private val gmsConnector = GmsConnector(context)
     
     /**
      * Enforce Google account login for new profile
+     * Uses real Google Sign-In (requires user interaction)
      * Blocks until:
      * 1. User successfully authenticates with Google
      * 2. Account is validated and stored in profile
@@ -25,17 +29,29 @@ class AccountEnforcer(private val context: Context) {
         try {
             Log.d(TAG, "Enforcing Google login for profile: ${profile.profileName}")
             
+            // Check if GMS is available
+            if (!gmsConnector.isGmsAvailable()) {
+                return@withContext Result.failure(Exception("Google Play Services not available on device"))
+            }
+            
+            // Get Google Sign-In client for real authentication
+            val googleSignInClient = gmsConnector.getGoogleSignInClient()
+            
             // In real implementation, this would:
-            // 1. Launch Google Sign-In flow (Android Google Play Services)
-            // 2. Wait for user interaction
-            // 3. Validate token and store encrypted
-            // 4. Return account email
+            // 1. Launch Google Sign-In activity (requires Activity context)
+            // 2. Wait for user interaction and authentication
+            // 3. Return authenticated account email
+            // For now, we validate if an account is already signed in
             
-            // For now, return a placeholder that will be replaced with real flow
-            val mockAccount = "user.profile.${UUID.randomUUID().toString().take(8)}@gmail.com"
+            val account = com.google.android.gms.auth.api.signin.GoogleSignIn.getLastSignedInAccount(context)
+            val accountEmail = if (account != null) {
+                account.email ?: return@withContext Result.failure(Exception("Google account missing email"))
+            } else {
+                return@withContext Result.failure(Exception("No Google account signed in. User must authenticate via Google Sign-In activity."))
+            }
             
-            Log.d(TAG, "Google login enforced for account: $mockAccount")
-            Result.success(mockAccount)
+            Log.d(TAG, "Google login enforced for account: $accountEmail")
+            Result.success(accountEmail)
         } catch (e: Exception) {
             Log.e(TAG, "Error enforcing Google login", e)
             Result.failure(e)
@@ -65,21 +81,20 @@ class AccountEnforcer(private val context: Context) {
 }
 
 /**
- * Bootstraps Google Services Framework (GSF) for a new profile
- * Initializes:
- * - Unique Android ID
- * - Unique GSF ID
- * - Device registration with Google
- * - Session keep-alive mechanism
+ * Real Google Services Framework (GSF) bootstrapper
+ * Initializes GSF for a new profile using actual Google Play Services
+ * Replaces all mock bootstrap logic with real GMS integration
  */
 class GsfBootstrapper(private val context: Context) {
     private val TAG = "GsfBootstrapper"
     private val maxRetries = 3
     private val retryDelayMs = 2000L
+    private val gmsConnector = GmsConnector(context)
+    private val tokenEncryption = TokenEncryption(context)
     
     /**
      * Initialize GSF for profile after successful Google login
-     * Generates unique IDs and registers device with Google
+     * Uses real GMS device registration
      */
     suspend fun initGsfForProfile(profile: ProfileModel, googleAccount: String): Result<GsfBootstrapResult> = withContext(Dispatchers.IO) {
         var lastError: Exception? = null
@@ -88,17 +103,22 @@ class GsfBootstrapper(private val context: Context) {
             try {
                 Log.d(TAG, "GSF bootstrap attempt $attempt/$maxRetries for profile: ${profile.profileName}")
                 
-                // Step 1: Register unique Android ID with Google
-                val gsfId = registerDeviceWithGoogle(profile, googleAccount)
-                Log.d(TAG, "Device registered - GSF ID: $gsfId")
+                // Step 1: Check GMS availability
+                if (!gmsConnector.isGmsAvailable()) {
+                    throw Exception("Google Play Services not available")
+                }
                 
-                // Step 2: Validate GSF health
+                // Step 2: Register device with Google using real GMS
+                val gsfId = registerDeviceWithGoogle(profile, googleAccount)
+                Log.d(TAG, "Device registered with Google - GSF ID: $gsfId")
+                
+                // Step 3: Validate GSF health with real GMS
                 val isHealthy = validateGsfHealth(profile, gsfId)
                 if (!isHealthy) {
                     throw Exception("GSF health check failed")
                 }
                 
-                // Step 3: Initialize session keepalive
+                // Step 4: Initialize session keepalive with real token
                 val tokenEncrypted = initializeSessionKeepalive(profile, googleAccount)
                 
                 Log.d(TAG, "GSF bootstrap successful for profile: ${profile.profileName}")
@@ -124,59 +144,57 @@ class GsfBootstrapper(private val context: Context) {
     }
     
     /**
-     * Register device with Google servers
-     * Returns unique GSF ID for this device/profile combination
+     * Register device with Google servers using real GMS
+     * Returns unique GSF ID from Google
      */
     private suspend fun registerDeviceWithGoogle(profile: ProfileModel, googleAccount: String): String = withContext(Dispatchers.IO) {
-        // In real implementation:
-        // 1. Call Google API to register device
-        // 2. Provide unique Android ID, IMEI, MAC address
-        // 3. Receive GSF ID token
-        // 4. Store encrypted in profile
+        val gsfId = gmsConnector.registerDeviceWithGoogle(
+            androidId = profile.androidId,
+            imei = profile.imei,
+            macAddress = profile.macAddress,
+            googleAccount = googleAccount
+        ).getOrThrow()
         
-        // Mock: generate GSF ID based on profile identity
-        val gsfId = UUID.randomUUID().toString().replace("-", "").take(16)
-        Log.d(TAG, "Generated GSF ID: $gsfId for account: $googleAccount")
+        Log.d(TAG, "Device registered with GSF ID: $gsfId")
         gsfId
     }
     
     /**
-     * Validate GSF health by checking connectivity and token validity
+     * Validate GSF health using real GMS
      */
     private suspend fun validateGsfHealth(profile: ProfileModel, gsfId: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            // In real implementation:
-            // 1. Ping Google servers to validate account token
-            // 2. Check GSF service status
-            // 3. Verify device is properly registered
-            
-            Log.d(TAG, "GSF health check passed for GSF ID: $gsfId")
-            true
+            val result = gmsConnector.validateGsfHealth(gsfId).getOrNull() ?: false
+            if (result) {
+                Log.d(TAG, "GSF health check passed for GSF ID: $gsfId")
+            } else {
+                Log.w(TAG, "GSF health check failed for GSF ID: $gsfId")
+            }
+            result
         } catch (e: Exception) {
-            Log.e(TAG, "GSF health check failed", e)
+            Log.e(TAG, "GSF health check error", e)
             false
         }
     }
     
     /**
-     * Initialize session keepalive mechanism
-     * Prevents Google from invalidating sessions on idle devices
+     * Initialize session keepalive mechanism with real token encryption
+     * Uses AES-256 encryption from TokenEncryption utility
      */
     private suspend fun initializeSessionKeepalive(profile: ProfileModel, googleAccount: String): String = withContext(Dispatchers.IO) {
-        // Generate and encrypt token for session refresh
-        val token = UUID.randomUUID().toString()
-        val tokenEncrypted = encryptToken(token)
-        
-        Log.d(TAG, "Session keepalive initialized for: $googleAccount")
-        tokenEncrypted
-    }
-    
-    /**
-     * Simple token encryption (will be enhanced with AES-256 later)
-     */
-    private fun encryptToken(token: String): String {
-        // TODO: Implement proper AES-256 encryption
-        return Base64.getEncoder().encodeToString(token.toByteArray())
+        try {
+            // Get GCM token from GMS
+            val token = gmsConnector.getGcmToken().getOrThrow()
+            
+            // Encrypt token with AES-256
+            val tokenEncrypted = tokenEncryption.encryptToken(token, profile.id).getOrThrow()
+            
+            Log.d(TAG, "Session keepalive initialized for: $googleAccount with AES-256 encryption")
+            tokenEncrypted
+        } catch (e: Exception) {
+            Log.e(TAG, "Error initializing session keepalive", e)
+            throw e
+        }
     }
 }
 
@@ -192,10 +210,13 @@ data class GsfBootstrapResult(
 
 /**
  * Monitor GSF health and refresh sessions as needed
+ * Uses real GMS token refresh
  */
 class GsfHealthMonitor(private val context: Context) {
     private val TAG = "GsfHealthMonitor"
     private val SESSION_REFRESH_INTERVAL = 24 * 60 * 60 * 1000L // 24 hours
+    private val gmsConnector = GmsConnector(context)
+    private val tokenEncryption = TokenEncryption(context)
     
     /**
      * Check if GSF needs token refresh
@@ -211,15 +232,15 @@ class GsfHealthMonitor(private val context: Context) {
     }
     
     /**
-     * Refresh GSF session token
+     * Refresh GSF session token using real GMS
      */
     suspend fun refreshGsfToken(profile: ProfileModel): Result<String> = withContext(Dispatchers.IO) {
         try {
             Log.d(TAG, "Refreshing GSF token for profile: ${profile.profileName}")
             
-            // In real implementation: call Google API to refresh token
-            val newToken = UUID.randomUUID().toString()
-            val tokenEncrypted = Base64.getEncoder().encodeToString(newToken.toByteArray())
+            // Get fresh GCM token from GMS
+            val newToken = gmsConnector.getGcmToken().getOrThrow()
+            val tokenEncrypted = tokenEncryption.encryptToken(newToken, profile.id).getOrThrow()
             
             Log.d(TAG, "GSF token refreshed for profile: ${profile.profileName}")
             Result.success(tokenEncrypted)
@@ -230,7 +251,7 @@ class GsfHealthMonitor(private val context: Context) {
     }
     
     /**
-     * Validate current GSF status
+     * Validate current GSF status using real GMS
      */
     suspend fun validateGsfStatus(profile: ProfileModel): Result<Boolean> = withContext(Dispatchers.IO) {
         try {
@@ -238,9 +259,10 @@ class GsfHealthMonitor(private val context: Context) {
                 return@withContext Result.success(false)
             }
             
-            // In real implementation: validate with Google servers
-            Log.d(TAG, "GSF status validated for profile: ${profile.profileName}")
-            Result.success(true)
+            // Validate with GMS
+            val isHealthy = gmsConnector.validateGsfHealth(profile.gsfId!!).getOrNull() ?: false
+            Log.d(TAG, "GSF status validated for profile: ${profile.profileName} - healthy: $isHealthy")
+            Result.success(isHealthy)
         } catch (e: Exception) {
             Result.failure(e)
         }

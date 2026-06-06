@@ -1,24 +1,27 @@
 package com.multispace.core.profile
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.multispace.core.util.DeviceIdentifierHelper
 import com.multispace.data.local.ProfileState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.util.*
 
 /**
  * Handles profile serialization/deserialization to/from ROM (persistent storage)
  * Saves GSF state, account tokens, and app data snapshots
+ * Uses real device fingerprints from Android system
  */
 class ProfileSerializer(
     private val context: Context,
     private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
 ) {
     private val TAG = "ProfileSerializer"
+    private val deviceIdHelper = DeviceIdentifierHelper(context)
     
     /**
      * Checkpoint profile state to ROM
@@ -69,7 +72,8 @@ class ProfileSerializer(
                 "imei" to profile.imei,
                 "macAddress" to profile.macAddress,
                 "serialNumber" to profile.serialNumber,
-                "buildFingerprint" to generateDeviceFingerprint(profile)
+                "buildFingerprint" to getBuildFingerprint()  // Real fingerprint from system
+            )
             )
             identityFile.writeText(gson.toJson(identity))
             
@@ -170,16 +174,12 @@ class ProfileSerializer(
         }
     }
     
-    /**
-     * Generate a realistic device fingerprint for this profile
+    /**t real device build fingerprint from Android system
      * Format: brand/product/device:version/build_id
+     * Example: google/Pixel7/Pixel7:14/TP1A.220624.014
      */
-    private fun generateDeviceFingerprint(profile: ProfileModel): String {
-        val brand = "Google"
-        val product = "Pixel7"
-        val device = "Pixel7"
-        val version = "14"
-        val buildId = UUID.randomUUID().toString().take(8).toUpperCase()
+    private fun getBuildFingerprint(): String {
+        return deviceIdHelper.getBuildFingerprint().toUpperCase()
         return "$brand/$product/$device:$version/$buildId"
     }
     

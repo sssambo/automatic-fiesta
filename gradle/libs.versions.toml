@@ -1,5 +1,5 @@
 [versions]
-agp = "8.13.2"
+agp = "8.6.0"
 junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
@@ -15,6 +15,11 @@ gson = "2.10.1"
 retrofit = "2.10.0"
 okhttp = "4.11.0"
 navVersion = "2.7.5"
+play-services-auth = "22.1.1"
+play-services-base = "18.5.0"
+play-services-tasks = "18.1.0"
+security-crypto = "1.1.0-alpha06"
+telephony = "1.0.0"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -38,6 +43,11 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhtt
 okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
 navigation-fragment = { group = "androidx.navigation", name = "navigation-fragment-ktx", version.ref = "navVersion" }
 navigation-ui = { group = "androidx.navigation", name = "navigation-ui-ktx", version.ref = "navVersion" }
+play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "play-services-auth" }
+play-services-base = { group = "com.google.android.gms", name = "play-services-base", version.ref = "play-services-base" }
+play-services-tasks = { group = "com.google.android.gms", name = "play-services-tasks", version.ref = "play-services-tasks" }
+security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "security-crypto" }
+telephony = { group = "androidx.core", name = "core-telephony", version.ref = "telephony" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

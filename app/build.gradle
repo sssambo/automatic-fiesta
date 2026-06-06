@@ -9,6 +9,8 @@ android {
     namespace 'top.niunaijun.blackboxa'
     compileSdk rootProject.ext.compileSdkVersion
     ndkVersion = "29.0.13846066"
+    
+    // Use consistent Java toolchain (Java 11)
     defaultConfig {
         applicationId "top.niunaijun.blackbox"
         minSdk rootProject.ext.minSdk
@@ -39,6 +41,12 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_11
         targetCompatibility JavaVersion.VERSION_11
+    }
+    
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(11)
+        }
     }
     
     kotlinOptions {
@@ -90,6 +98,17 @@ dependencies {
     // Navigation
     implementation libs.navigation.fragment
     implementation libs.navigation.ui
+    
+    // Google Play Services (Real Android 11+ integration)
+    implementation libs.play.services.auth
+    implementation libs.play.services.base
+    implementation libs.play.services.tasks
+    
+    // Encryption (AES-256 via AndroidKeyStore)
+    implementation libs.security.crypto
+    
+    // Telephony for device info
+    implementation libs.telephony
     
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit

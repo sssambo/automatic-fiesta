@@ -17,6 +17,9 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.view.animation.OvershootInterpolator;
 
+import com.multispace.MultiSpaceApplication;
+import com.multispace.core.profile.ProfileLifecycleController;
+import com.multispace.core.profile.ProfileModel;
 
 public class LauncherActivity extends Activity {
     public static final String TAG = "SplashScreen";
@@ -25,6 +28,8 @@ public class LauncherActivity extends Activity {
     public static final String KEY_PKG = "launch_pkg";
     public static final String KEY_USER_ID = "launch_user_id";
     private boolean isRunning = false;
+    
+    private TextView statusTextView;
 
     public static void launch(Intent intent, int userId) {
         try {
@@ -36,7 +41,7 @@ public class LauncherActivity extends Activity {
             splash.putExtra(LauncherActivity.KEY_PKG, intent.getPackage());
             splash.putExtra(LauncherActivity.KEY_USER_ID, userId);
             BlackBoxCore.getContext().startActivity(splash);
-            Slog.d(TAG, "LauncherActivity.launch() called for package: " + intent.getPackage());
+            Slog.d(TAG, "LauncherActivity.launch() called for package: " + intent.getPackage() + " on Profile ID: " + userId);
         } catch (Exception e) {
             Slog.e(TAG, "Error in LauncherActivity.launch()", e);
         }
@@ -66,16 +71,13 @@ public class LauncherActivity extends Activity {
 
             Slog.d(TAG, "LauncherActivity.onCreate() for package: " + packageName + ", userId: " + userId);
 
-            
             PackageInfo packageInfo = getPackageInfoWithFallback(packageName, userId);
             
             if (packageInfo == null) {
                 Slog.w(TAG, "Package info not available for " + packageName + ", but proceeding with launch");
-                
             } else {
                 Slog.d(TAG, "Successfully retrieved package info for " + packageName);
             }
-            
             
             Drawable drawable = null;
             String appName = packageName;
@@ -89,9 +91,17 @@ public class LauncherActivity extends Activity {
             } catch (Exception e) {
                 Slog.w(TAG, "Failed to load app icon or name for " + packageName + ": " + e.getMessage());
             }
+            
             setContentView(R.layout.activity_launcher);
             ImageView iconView = findViewById(R.id.iv_icon);
             TextView nameView = findViewById(R.id.tv_app_name);
+            
+            // Reference or fallback to status tracker view to output initialization feedback
+            statusTextView = findViewById(R.id.tv_status_message); 
+            if (statusTextView != null) {
+                statusTextView.setText("Initializing secure workspace engine...");
+            }
+
             if (nameView != null) {
                 nameView.setText(appName);
                 nameView.setAlpha(0f);
@@ -121,8 +131,8 @@ public class LauncherActivity extends Activity {
                     .start();
             }
             
-            
-            launchAppAsync(launchIntent, userId);
+            // Execute safe asynchronous bootstrap workflow
+            launchAppWithProfileBootstrap(launchIntent, userId);
             
         } catch (Exception e) {
             Slog.e(TAG, "Critical error in LauncherActivity.onCreate()", e);
@@ -130,28 +140,20 @@ public class LauncherActivity extends Activity {
         }
     }
 
-    
     private PackageInfo getPackageInfoWithFallback(String packageName, int userId) {
         try {
-            
             return BlackBoxCore.getBPackageManager().getPackageInfo(packageName, 0, userId);
         } catch (Exception e) {
             Slog.w(TAG, "Failed to get package info for " + packageName + " (attempt 1): " + e.getMessage());
-            
             try {
-                
                 return BlackBoxCore.getBPackageManager().getPackageInfo(packageName, 
                     android.content.pm.PackageManager.GET_META_DATA, userId);
             } catch (Exception e2) {
                 Slog.w(TAG, "Failed to get package info for " + packageName + " (attempt 2): " + e2.getMessage());
-                
                 try {
-                    
                     android.content.pm.ApplicationInfo appInfo = BlackBoxCore.getBPackageManager()
                         .getApplicationInfo(packageName, 0, userId);
-                    
                     if (appInfo != null) {
-                        
                         PackageInfo fallbackInfo = new PackageInfo();
                         fallbackInfo.packageName = packageName;
                         fallbackInfo.applicationInfo = appInfo;
@@ -159,7 +161,6 @@ public class LauncherActivity extends Activity {
                         fallbackInfo.versionName = "1.0";
                         fallbackInfo.firstInstallTime = System.currentTimeMillis();
                         fallbackInfo.lastUpdateTime = System.currentTimeMillis();
-                        
                         Slog.d(TAG, "Created fallback PackageInfo for " + packageName);
                         return fallbackInfo;
                     }
@@ -168,37 +169,68 @@ public class LauncherActivity extends Activity {
                 }
             }
         }
-        
         return null;
     }
 
-    
-    private void launchAppAsync(final Intent launchIntent, final int userId) {
+    /**
+     * Handles sequential pre-flight activation barriers before releasing BlackBox core launch sequences.
+     */
+    private void launchAppWithProfileBootstrap(final Intent launchIntent, final int userId) {
         new Thread(() -> {
             try {
-                Slog.d(TAG, "Starting app launch in background thread");
+                Slog.d(TAG, "Intercepting launch stream. Requesting baseline infrastructure mount for profile ID: " + userId);
                 
+                // 1. Resolve Application context safely
+                android.content.Context hostContext = BlackBoxCore.getContext();
+                if (hostContext != null && hostContext.getApplicationContext() instanceof MultiSpaceApplication) {
+                    MultiSpaceApplication multiSpaceApp = (MultiSpaceApplication) hostContext.getApplicationContext();
+                    ProfileLifecycleController lifecycleController = multiSpaceApp.getProfileLifecycleController();
+                    
+                    // Update UI splash to report state progress
+                    updateStatusMessage("Synchronizing isolated database profiles...");
+                    
+                    // 2. Core Block: Activate profile synchronously on background thread execution
+                    // Note: lifecycleController handles GsfBootstrapper mapping and setting up RAM tracking models
+                    Result<ProfileModel> bootResult = lifecycleController.activateProfileSynchronous(userId);
+                    
+                    if (bootResult.isFailure()) {
+                        throw new Exception("Profile Engine Exception: " + bootResult.exceptionOrNull().getMessage());
+                    }
+                    
+                    Slog.i(TAG, "Profile lifecycle verification passed successfully. Resuming virtual core spawn pipeline.");
+                } else {
+                    Slog.w(TAG, "Host Application Context is not a valid MultiSpace instance. Bypassing state validations.");
+                }
                 
-                Thread.sleep(100);
+                updateStatusMessage("Spawning sandbox runtime container...");
                 
+                // Allow hardware bindings a fractional cycle to settle
+                Thread.sleep(150);
                 
+                // 3. Fire application context execution safely inside BlackBox engine
                 BlackBoxCore.getBActivityManager().startActivity(launchIntent, userId);
+                Slog.d(TAG, "Sandbox execution context launched cleanly.");
                 
-                Slog.d(TAG, "App launch initiated successfully");
             } catch (Exception e) {
-                Slog.e(TAG, "Error launching app", e);
+                Slog.e(TAG, "Critical failure during profile virtualization bootstrap phase", e);
                 
-                
+                // Report errors cleanly back onto the screen instead of silently dropping or freezing
                 runOnUiThread(() -> {
-                    try {
-                        
-                        Slog.e(TAG, "Failed to launch app: " + e.getMessage());
-                    } catch (Exception uiException) {
-                        Slog.e(TAG, "Error showing error message", uiException);
+                    if (statusTextView != null) {
+                        statusTextView.setText("Configuration Error:\n" + e.getMessage());
+                        statusTextView.setTextColor(android.graphics.Color.RED);
                     }
                 });
             }
         }, "AppLaunchThread").start();
+    }
+    
+    private void updateStatusMessage(final String msg) {
+        runOnUiThread(() -> {
+            if (statusTextView != null) {
+                statusTextView.setText(msg);
+            }
+        });
     }
 
     @Override

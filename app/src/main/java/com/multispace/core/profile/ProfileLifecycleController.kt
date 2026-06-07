@@ -142,4 +142,17 @@ class ProfileLifecycleController(
         Log.d(TAG, "Checkpointing profile to ROM: ${romPath.absolutePath}")
         // ProfileSerializer will handle the actual serialization
     }
+
+    /**
+ * Synchronous Java-interop bridge wrapper to execute activateProfile routines.
+ */
+fun activateProfileSynchronous(profileId: Int): Result<ProfileModel> {
+    return kotlinx.coroutines.runBlocking(Dispatchers.IO) {
+        try {
+            activateProfile(profileId)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+}
 }

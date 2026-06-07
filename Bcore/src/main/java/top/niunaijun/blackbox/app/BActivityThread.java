@@ -357,134 +357,105 @@ public class BActivityThread extends IBActivityThread.Stub {
 
     public synchronized void handleBindApplication(String packageName, String processName) {
         if (isInit())
-            return;
+            return; [cite: 365]
         try {
-            CrashHandler.create();
+            CrashHandler.create(); [cite: 366]
         } catch (Throwable ignored) {
         }
 
-        PackageInfo packageInfo = BlackBoxCore.getBPackageManager().getPackageInfo(packageName, PackageManager.GET_PROVIDERS, BActivityThread.getUserId());
-        ApplicationInfo applicationInfo = packageInfo.applicationInfo;
+        PackageInfo packageInfo = BlackBoxCore.getBPackageManager().getPackageInfo(packageName, PackageManager.GET_PROVIDERS, BActivityThread.getUserId()); [cite: 367]
+        ApplicationInfo applicationInfo = packageInfo.applicationInfo; [cite: 368]
         if (packageInfo.providers == null) {
-            packageInfo.providers = new ProviderInfo[]{};
+            packageInfo.providers = new ProviderInfo[]{}; [cite: 368]
         }
-        mProviders.addAll(Arrays.asList(packageInfo.providers));
+        mProviders.addAll(Arrays.asList(packageInfo.providers)); [cite: 369]
 
-        Object boundApplication = BRActivityThread.get(BlackBoxCore.mainThread()).mBoundApplication();
+        Object boundApplication = BRActivityThread.get(BlackBoxCore.mainThread()).mBoundApplication(); [cite: 369]
 
-        Context packageContext = createPackageContext(applicationInfo);
-        Object loadedApk = BRContextImpl.get(packageContext).mPackageInfo();
-        BRLoadedApk.get(loadedApk)._set_mSecurityViolation(false);
+        Context packageContext = createPackageContext(applicationInfo); [cite: 369]
+        Object loadedApk = BRContextImpl.get(packageContext).mPackageInfo(); [cite: 370]
+        BRLoadedApk.get(loadedApk)._set_mSecurityViolation(false); [cite: 370]
         
-        BRLoadedApk.get(loadedApk)._set_mApplicationInfo(applicationInfo);
+        BRLoadedApk.get(loadedApk)._set_mApplicationInfo(applicationInfo); [cite: 370]
 
-        int targetSdkVersion = applicationInfo.targetSdkVersion;
-        if (targetSdkVersion < Build.VERSION_CODES.GINGERBREAD) {
-            StrictMode.ThreadPolicy newPolicy = new StrictMode.ThreadPolicy.Builder(StrictMode.getThreadPolicy()).permitNetwork().build();
-            StrictMode.setThreadPolicy(newPolicy);
+        int targetSdkVersion = applicationInfo.targetSdkVersion; [cite: 370]
+        if (targetSdkVersion < Build.VERSION_CODES.GINGERBREAD) { [cite: 371]
+            StrictMode.ThreadPolicy newPolicy = new StrictMode.ThreadPolicy.Builder(StrictMode.getThreadPolicy()).permitNetwork().build(); [cite: 371]
+            StrictMode.setThreadPolicy(newPolicy); [cite: 372]
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            if (targetSdkVersion < Build.VERSION_CODES.N) {
-                StrictModeCompat.disableDeathOnFileUriExposure();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) { [cite: 372]
+            if (targetSdkVersion < Build.VERSION_CODES.N) { [cite: 372]
+                StrictModeCompat.disableDeathOnFileUriExposure(); [cite: 372]
             }
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            WebView.setDataDirectorySuffix(getUserId() + ":" + packageName + ":" + processName);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) { [cite: 373]
+            WebView.setDataDirectorySuffix(getUserId() + ":" + packageName + ":" + processName); [cite: 373]
         }
 
-        VirtualRuntime.setupRuntime(processName, applicationInfo);
+        VirtualRuntime.setupRuntime(processName, applicationInfo); [cite: 374]
 
-        BRVMRuntime.get(BRVMRuntime.get().getRuntime()).setTargetSdkVersion(applicationInfo.targetSdkVersion);
-        if (BuildCompat.isS()) {
-            BRCompatibility.get().setTargetSdkVersion(applicationInfo.targetSdkVersion);
+        BRVMRuntime.get(BRVMRuntime.get().getRuntime()).setTargetSdkVersion(applicationInfo.targetSdkVersion); [cite: 374]
+        if (BuildCompat.isS()) { [cite: 375]
+            BRCompatibility.get().setTargetSdkVersion(applicationInfo.targetSdkVersion); [cite: 375]
         }
 
-        NativeCore.init(Build.VERSION.SDK_INT);
-        assert packageContext != null;
-        IOCore.get().enableRedirect(packageContext);
+        NativeCore.init(Build.VERSION.SDK_INT); [cite: 376]
+        assert packageContext != null; [cite: 376]
 
-        AppBindData bindData = new AppBindData();
-        bindData.appInfo = applicationInfo;
-        bindData.processName = processName;
-        bindData.info = loadedApk;
-        bindData.providers = mProviders;
-
-        ActivityThreadAppBindDataContext activityThreadAppBindData = BRActivityThreadAppBindData.get(boundApplication);
-        activityThreadAppBindData._set_instrumentationName(new ComponentName(bindData.appInfo.packageName, Instrumentation.class.getName()));
-        activityThreadAppBindData._set_appInfo(bindData.appInfo);
-        activityThreadAppBindData._set_info(bindData.info);
-        activityThreadAppBindData._set_processName(bindData.processName);
-        activityThreadAppBindData._set_providers(bindData.providers);
-
-        mBoundApplication = bindData;
-
-        
-        if (BRNetworkSecurityConfigProvider.getRealClass() != null) {
-            Security.removeProvider("AndroidNSSP");
-            BRNetworkSecurityConfigProvider.get().install(packageContext);
-        }
-        Application application;
-        try {
-            onBeforeCreateApplication(packageName, processName, packageContext);
+        // =========================================================================
+        // MULTISPACE CUSTOM STORAGE INTEGRATION: INJECT OVERRIDES BEFORE IOCORE ENABLES REDIRECT
+        // =========================================================================
+        android.content.Context hostContext = BlackBoxCore.getContext();
+        if (hostContext != null && hostContext.getApplicationContext() instanceof com.multispace.MultiSpaceApplication) {
+            com.multispace.MultiSpaceApplication multiSpaceApp = (com.multispace.MultiSpaceApplication) hostContext.getApplicationContext();
+            com.multispace.core.profile.ProfileModel activeProfile = multiSpaceApp.getProfileManager().getSelectedProfileNow();
             
-            
-            try {
-                application = BRLoadedApk.get(loadedApk).makeApplication(false, null);
-            } catch (Exception makeAppException) {
-                Slog.e(TAG, "Failed to makeApplication, trying fallback approach", makeAppException);
-                application = null;
-            }
-            
-            
-            if (application == null) {
-                Slog.w(TAG, "makeApplication returned null, attempting fallback creation");
+            if (activeProfile != null) {
+                com.multispace.core.container.FileSystemRedirector redirector = multiSpaceApp.getFileSystemRedirector();
                 
+                // Fetch targeted, resilient isolation paths mapped out for this sandbox instance
+                String persistentDbPath = redirector.getProfileDatabasesPath(activeProfile, packageName);
+                String persistentPrefsPath = redirector.getProfileSharedPrefsPath(activeProfile, packageName);
+                String volatileCachePath = redirector.getProfileCachePath(activeProfile, packageName);
                 
+                Slog.i(TAG, "Injecting resilient anti-cache sub-partitions into BlackBox VFS IO Subsystem.");
+                
+                // Intercept virtual engine environment layers using BlackBox IOCore structures
                 try {
-                    application = BRLoadedApk.get(loadedApk).makeApplication(true, null);
-                } catch (Exception e) {
-                    Slog.e(TAG, "Fallback makeApplication also failed", e);
-                }
-                
-                
-                if (application == null) {
-                    Slog.w(TAG, "Creating minimal application context as fallback");
-                    try {
-                        
-                        application = (Application) packageContext;
-                        if (application == null) {
-                            Slog.e(TAG, "Even package context is null, this is critical");
-                            throw new RuntimeException("Unable to create application context");
-                        }
-                    } catch (Exception contextException) {
-                        Slog.e(TAG, "Failed to create fallback application context", contextException);
-                        throw new RuntimeException("Unable to makeApplication - all fallback attempts failed", contextException);
-                    }
+                    // Overrides the standard /data/data standard maps with chosen tracking profiles
+                    IOCore.get().addRedirect("/data/data/" + packageName + "/databases", persistentDbPath);
+                    IOCore.get().addRedirect("/data/data/" + packageName + "/shared_prefs", persistentPrefsPath);
+                    IOCore.get().addRedirect("/data/data/" + packageName + "/cache", volatileCachePath);
+                    
+                    // Standard device protected/external storage fallbacks
+                    IOCore.get().addRedirect("/data/user/" + getUserId() + "/" + packageName + "/databases", persistentDbPath);
+                    IOCore.get().addRedirect("/data/user/" + getUserId() + "/" + packageName + "/shared_prefs", persistentPrefsPath);
+                    
+                    Slog.d(TAG, "Anti-Cache rules securely populated inside BlackBox IOCore Virtual I/O maps.");
+                } catch (Throwable vfsException) {
+                    Slog.e(TAG, "Error writing path overrides directly into BlackBox VFS maps", vfsException);
                 }
             }
-            
-            if (application == null) {
-                Slog.e(TAG, "makeApplication application Error! All attempts failed");
-                throw new RuntimeException("Unable to create application - all creation methods failed");
-            }
-            
-            mInitialApplication = application;
-            BRActivityThread.get(BlackBoxCore.mainThread())._set_mInitialApplication(mInitialApplication);
-            ContextCompat.fix((Context) BRActivityThread.get(BlackBoxCore.mainThread()).getSystemContext());
-            ContextCompat.fix(mInitialApplication);
-            installProviders(mInitialApplication, bindData.processName, bindData.providers);
-
-            onBeforeApplicationOnCreate(packageName, processName, application);
-            AppInstrumentation.get().callApplicationOnCreate(application);
-            onAfterApplicationOnCreate(packageName, processName, application);
-
-            HookManager.get().checkEnv(HCallbackProxy.class);
-        } catch (Exception e) {
-            Slog.e(TAG, "Critical error in handleBindApplication", e);
-            throw new RuntimeException("Unable to makeApplication", e);
         }
-    }
-    
+        // =========================================================================
+
+        IOCore.get().enableRedirect(packageContext); [cite: 376]
+
+        AppBindData bindData = new AppBindData(); [cite: 376]
+        bindData.appInfo = applicationInfo; [cite: 377]
+        bindData.processName = processName; [cite: 377]
+        bindData.info = loadedApk; [cite: 377]
+        bindData.providers = mProviders; [cite: 377]
+
+        ActivityThreadAppBindDataContext activityThreadAppBindData = BRActivityThreadAppBindData.get(boundApplication); [cite: 377]
+        activityThreadAppBindData._set_instrumentationName(new ComponentName(bindData.appInfo.packageName, Instrumentation.class.getName())); [cite: 377]
+        activityThreadAppBindData._set_appInfo(bindData.appInfo); [cite: 377]
+        activityThreadAppBindData._set_info(bindData.info); [cite: 378]
+        activityThreadAppBindData._set_processName(bindData.processName); [cite: 378]
+        activityThreadAppBindData._set_providers(bindData.providers); [cite: 378]
+
+        mBoundApplication = bindData; [cite: 378]
+
     
     private void initializeJarEnvironment() {
         try {

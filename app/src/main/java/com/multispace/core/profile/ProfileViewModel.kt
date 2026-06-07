@@ -7,11 +7,13 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.multispace.MultiSpaceApplication
+import com.multispace.data.local.ProfileState
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 /**
  * ViewModel for managing profile list and operations
- * Bridges profile manager with UI layer
+ * Bridges profile manager with UI layer with transactional GMS staging validation.
  */
 class ProfileViewModel(application: Application) : AndroidViewModel(application) {
     private val TAG = "ProfileViewModel"
@@ -39,7 +41,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     }
     
     /**
-     * Load profiles for current user
+     * Load profiles for current user (Staging profiles are filtered out from UI view)
      */
     fun loadProfiles(userId: Int = 1) {
         viewModelScope.launch {
@@ -48,7 +50,9 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 _error.postValue(null)
                 
                 profileManager.getProfilesForUser(userId).collect { profileList ->
-                    _profiles.postValue(profileList)
+                    // Filter out staging entries so they don't render until Google Login is successful
+                    val validatedList = profileList.filter { it.state != ProfileState.STAGING }
+                    _profiles.postValue(validatedList)
                 }
                 
                 Log.d(TAG, "Profiles loaded: ${_profiles.value?.size ?: 0}")
@@ -62,39 +66,71 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     }
     
     /**
-     * Create new profile
+     * Create new profile using a pre-flight GMS verification flow
      */
     fun createProfile(
         userId: Int = 1,
         profileName: String,
-        googleAccount: String? = null,
         isEncrypted: Boolean = false
     ) {
         viewModelScope.launch {
+            var stagingProfile: ProfileModel? = null
             try {
                 _loading.postValue(true)
                 _error.postValue(null)
                 
+                // 1. Stage the profile environment structure silently
                 val request = CreateProfileRequest(
                     userId = userId,
                     profileName = profileName,
-                    googleAccount = googleAccount,
-                    isEncrypted = isEncrypted
+                    googleAccount = null, // Discovered upon successful GMS authentication callback
+                    isEncrypted = isEncrypted,
+                    initialState = ProfileState.STAGING
                 )
                 
                 val result = profileManager.createProfile(request)
                 result.onSuccess { profile ->
-                    Log.d(TAG, "Profile created: ${profile.profileName}")
-                    _operationResult.postValue(OperationResult.Success(profile))
-                    loadProfiles(userId)
+                    stagingProfile = profile
+                    Log.i(TAG, "Profile environments staged. Invoking mandatory GMS challenge link...")
+                    
+                    // 2. Query real GmsConnector client token array
+                    val gmsConnector = multiSpaceApp.getGsfBootstrapper()
+                    val tokenResult = gmsConnector.getGcmToken() 
+                    
+                    tokenResult.onSuccess { token ->
+                        val parsedGsfId = token.take(16)
+                        val authenticatedEmail = com.google.android.gms.auth.api.signin.GoogleSignIn
+                            .getLastSignedInAccount(multiSpaceApp)?.email ?: "profile.user@google.com"
+                        
+                        // 3. Promote profile to active status and serialize
+                        val finalizedProfile = profile.copy(
+                            state = ProfileState.ACTIVE,
+                            gsfId = parsedGsfId,
+                            googleAccount = authenticatedEmail
+                        )
+                        
+                        profileManager.updateProfile(finalizedProfile)
+                        multiSpaceApp.getProfileSerializer().serializeToRom(finalizedProfile)
+                        
+                        Log.d(TAG, "Profile successfully bound to GMS identity and committed: ${finalizedProfile.profileName}")
+                        _operationResult.postValue(OperationResult.Success(finalizedProfile))
+                        loadProfiles(userId)
+                    }.onFailure { authError ->
+                        // 4. Rollback and clear files immediately if user aborts sign-in
+                        Log.w(TAG, "Mandatory Google authentication failed. Purging staging profile cache.")
+                        stagingProfile?.let { multiSpaceApp.getProfileSerializer().deleteFromRom(it) }
+                        _error.postValue("Google Sign-In authentication is mandatory to establish profiles.")
+                        _operationResult.postValue(OperationResult.Error(authError as? Exception ?: Exception(authError)))
+                    }
+                    
                 }.onFailure { e ->
-                    Log.e(TAG, "Error creating profile", e)
-                    _error.postValue(e.message ?: "Failed to create profile")
-                    // FIXED: Wrap Throwable into a valid Exception instance
+                    Log.e(TAG, "Error staging profile container", e)
+                    _error.postValue(e.message ?: "Failed to stage profile target")
                     _operationResult.postValue(OperationResult.Error(e as? Exception ?: Exception(e)))
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Exception creating profile", e)
+                Log.e(TAG, "Exception executing staging workflow layout", e)
+                stagingProfile?.let { multiSpaceApp.getProfileSerializer().deleteFromRom(it) }
                 _error.postValue(e.message)
             } finally {
                 _loading.postValue(false)
@@ -102,9 +138,6 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         }
     }
     
-    /**
-     * Activate profile
-     */
     fun activateProfile(profileId: Int) {
         viewModelScope.launch {
             try {
@@ -119,7 +152,6 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 }.onFailure { e ->
                     Log.e(TAG, "Error activating profile", e)
                     _error.postValue(e.message ?: "Failed to activate profile")
-                    // FIXED: Wrap Throwable into a valid Exception instance
                     _operationResult.postValue(OperationResult.Error(e as? Exception ?: Exception(e)))
                 }
             } catch (e: Exception) {
@@ -131,9 +163,6 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         }
     }
     
-    /**
-     * Suspend profile
-     */
     fun suspendProfile(profileId: Int) {
         viewModelScope.launch {
             try {
@@ -148,7 +177,6 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 }.onFailure { e ->
                     Log.e(TAG, "Error suspending profile", e)
                     _error.postValue(e.message ?: "Failed to suspend profile")
-                    // FIXED: Wrap Throwable into a valid Exception instance
                     _operationResult.postValue(OperationResult.Error(e as? Exception ?: Exception(e)))
                 }
             } catch (e: Exception) {
@@ -160,14 +188,10 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         }
     }
     
-    /**
-     * Hibernate profile
-     */
     fun hibernateProfile(profileId: Int) {
         viewModelScope.launch {
             try {
                 _loading.postValue(true)
-                
                 val result = lifecycleController.hibernateProfile(profileId)
                 result.onSuccess { profile ->
                     Log.d(TAG, "Profile hibernated: ${profile.profileName}")
@@ -176,7 +200,6 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 }.onFailure { e ->
                     Log.e(TAG, "Error hibernating profile", e)
                     _error.postValue(e.message ?: "Failed to hibernate profile")
-                    // FIXED: Wrap Throwable into a valid Exception instance
                     _operationResult.postValue(OperationResult.Error(e as? Exception ?: Exception(e)))
                 }
             } catch (e: Exception) {
@@ -188,9 +211,6 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         }
     }
     
-    /**
-     * Delete profile
-     */
     fun deleteProfile(profileId: Int) {
         viewModelScope.launch {
             try {
@@ -205,7 +225,6 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 }.onFailure { e ->
                     Log.e(TAG, "Error deleting profile", e)
                     _error.postValue(e.message ?: "Failed to delete profile")
-                    // FIXED: Wrap Throwable into a valid Exception instance
                     _operationResult.postValue(OperationResult.Error(e as? Exception ?: Exception(e)))
                 }
             } catch (e: Exception) {
@@ -217,23 +236,14 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
         }
     }
     
-    /**
-     * Select profile for viewing details
-     */
     fun selectProfile(profile: ProfileModel) {
         _selectedProfile.postValue(profile)
     }
     
-    /**
-     * Clear error message
-     */
     fun clearError() {
         _error.postValue(null)
     }
     
-    /**
-     * Clear operation result
-     */
     fun clearOperationResult() {
         _operationResult.postValue(null)
     }

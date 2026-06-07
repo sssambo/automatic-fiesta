@@ -1,6 +1,7 @@
 package com.multispace
 
 import android.app.Application
+import android.content.Context
 import android.util.Log
 import com.multispace.core.container.FileSystemRedirector
 import com.multispace.core.gsf.AccountEnforcer
@@ -12,10 +13,12 @@ import com.multispace.core.profile.ProfileSerializer
 import com.multispace.data.local.MultiSpaceDatabase
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import top.niunaijun.blackbox.BCore
+import top.niunaijun.blackbox.app.configuration.ClientConfiguration
 
 /**
  * Main application class for MultiSpace
- * Initializes all core managers and managers on app startup
+ * Initializes all core managers and integrates NewBlackbox layers
  */
 class MultiSpaceApplication : Application() {
     private val TAG = "MultiSpaceApplication"
@@ -29,7 +32,7 @@ class MultiSpaceApplication : Application() {
         }
     }
     
-    // Core managers (lazy initialized)
+    // Core managers
     private lateinit var database: MultiSpaceDatabase
     private lateinit var profileManager: ProfileManager
     private lateinit var profileLifecycleController: ProfileLifecycleController
@@ -40,6 +43,21 @@ class MultiSpaceApplication : Application() {
     private lateinit var gsfHealthMonitor: GsfHealthMonitor
     private lateinit var gson: Gson
     
+    override fun attachBaseContext(base: Context) {
+        super.attachBaseContext(base)
+        try {
+            // 1. Hook NewBlackbox core lifecycle immediately into base application frame
+            BCore.get().doAttachBaseContext(base, object : ClientConfiguration() {
+                override fun getHostPackageName(): String {
+                    return base.packageName
+                }
+            })
+            Log.d(TAG, "NewBlackbox BCore attached to base context.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Fatal error executing NewBlackbox attachment phase", e)
+        }
+    }
+    
     override fun onCreate() {
         super.onCreate()
         instance = this
@@ -47,6 +65,10 @@ class MultiSpaceApplication : Application() {
         Log.d(TAG, "MultiSpaceApplication initializing...")
         
         try {
+            // 2. Fire the core virtual machine engine channels
+            BCore.get().doCreate()
+            Log.d(TAG, "NewBlackbox BCore virtualization channels online.")
+
             // Initialize Gson
             gson = GsonBuilder()
                 .setPrettyPrinting()
@@ -69,9 +91,9 @@ class MultiSpaceApplication : Application() {
             profileSerializer = ProfileSerializer(this, gson)
             Log.d(TAG, "ProfileSerializer initialized")
             
-            // Initialize filesystem redirector
-            fsRedirector = FileSystemRedirector()
-            Log.d(TAG, "FileSystemRedirector initialized")
+            // Initialize filesystem redirector pointing to secure host storage
+            fsRedirector = FileSystemRedirector(this)
+            Log.d(TAG, "FileSystemRedirector initialized with persistence layers")
             
             // Initialize GSF layer
             gsfBootstrapper = GsfBootstrapper(this)
@@ -99,7 +121,6 @@ class MultiSpaceApplication : Application() {
     
     override fun onTerminate() {
         super.onTerminate()
-        // Clean up resources
         profileManager.close()
         Log.d(TAG, "MultiSpaceApplication terminated")
     }

@@ -90,7 +90,8 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 }.onFailure { e ->
                     Log.e(TAG, "Error creating profile", e)
                     _error.postValue(e.message ?: "Failed to create profile")
-                    _operationResult.postValue(OperationResult.Error(e))
+                    // FIXED: Wrap Throwable into a valid Exception instance
+                    _operationResult.postValue(OperationResult.Error(e as? Exception ?: Exception(e)))
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Exception creating profile", e)
@@ -118,7 +119,8 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 }.onFailure { e ->
                     Log.e(TAG, "Error activating profile", e)
                     _error.postValue(e.message ?: "Failed to activate profile")
-                    _operationResult.postValue(OperationResult.Error(e))
+                    // FIXED: Wrap Throwable into a valid Exception instance
+                    _operationResult.postValue(OperationResult.Error(e as? Exception ?: Exception(e)))
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Exception activating profile", e)
@@ -146,7 +148,8 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 }.onFailure { e ->
                     Log.e(TAG, "Error suspending profile", e)
                     _error.postValue(e.message ?: "Failed to suspend profile")
-                    _operationResult.postValue(OperationResult.Error(e))
+                    // FIXED: Wrap Throwable into a valid Exception instance
+                    _operationResult.postValue(OperationResult.Error(e as? Exception ?: Exception(e)))
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Exception suspending profile", e)
@@ -173,7 +176,8 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 }.onFailure { e ->
                     Log.e(TAG, "Error hibernating profile", e)
                     _error.postValue(e.message ?: "Failed to hibernate profile")
-                    _operationResult.postValue(OperationResult.Error(e))
+                    // FIXED: Wrap Throwable into a valid Exception instance
+                    _operationResult.postValue(OperationResult.Error(e as? Exception ?: Exception(e)))
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Exception hibernating profile", e)
@@ -201,7 +205,8 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 }.onFailure { e ->
                     Log.e(TAG, "Error deleting profile", e)
                     _error.postValue(e.message ?: "Failed to delete profile")
-                    _operationResult.postValue(OperationResult.Error(e))
+                    // FIXED: Wrap Throwable into a valid Exception instance
+                    _operationResult.postValue(OperationResult.Error(e as? Exception ?: Exception(e)))
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Exception deleting profile", e)

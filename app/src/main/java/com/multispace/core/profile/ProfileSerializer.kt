@@ -74,7 +74,8 @@ class ProfileSerializer(
                 "serialNumber" to profile.serialNumber,
                 "buildFingerprint" to getBuildFingerprint()  // Real fingerprint from system
             )
-            )
+            
+            // FIXED: Removed the standalone stray ')' that was right here
             identityFile.writeText(gson.toJson(identity))
             
             // Create app_data directory for app storage snapshots
@@ -174,13 +175,14 @@ class ProfileSerializer(
         }
     }
     
-    /**t real device build fingerprint from Android system
+    /**
+     * Get real device build fingerprint from Android system
      * Format: brand/product/device:version/build_id
      * Example: google/Pixel7/Pixel7:14/TP1A.220624.014
      */
     private fun getBuildFingerprint(): String {
-        return deviceIdHelper.getBuildFingerprint().toUpperCase()
-        return "$brand/$product/$device:$version/$buildId"
+        // FIXED: Cleaned up dual-return statements and tracking variables
+        return deviceIdHelper.getBuildFingerprint().uppercase()
     }
     
     /**

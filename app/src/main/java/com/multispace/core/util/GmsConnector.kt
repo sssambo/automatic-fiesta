@@ -55,9 +55,13 @@ class GmsConnector(private val context: Context) {
             // Get current signed-in account
             val account = GoogleSignIn.getLastSignedInAccount(context)
             if (account != null) {
+                // FIXED: Explicitly handle nullability of account.account using Elvis operator
+                val androidAccount = account.account 
+                    ?: return Result.failure(Exception("Google Account object is missing profile permissions"))
+
                 val token = GoogleAuthUtil.getToken(
                     context,
-                    account.account,
+                    androidAccount,
                     "oauth2:https://www.googleapis.com/auth/userinfo.profile"
                 )
                 Log.d(TAG, "GCM token obtained: ${token.take(20)}...")

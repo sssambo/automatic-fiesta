@@ -15,11 +15,10 @@ gson = "2.10.1"
 retrofit = "2.10.0"
 okhttp = "4.11.0"
 navVersion = "2.7.5"
-play-services-auth = "22.1.1"
+play-services-auth = "20.7.0"
 play-services-base = "18.5.0"
 play-services-tasks = "18.1.0"
 security-crypto = "1.1.0-alpha06"
-telephony = "1.0.0"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -47,7 +46,6 @@ play-services-auth = { group = "com.google.android.gms", name = "play-services-a
 play-services-base = { group = "com.google.android.gms", name = "play-services-base", version.ref = "play-services-base" }
 play-services-tasks = { group = "com.google.android.gms", name = "play-services-tasks", version.ref = "play-services-tasks" }
 security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "security-crypto" }
-telephony = { group = "androidx.core", name = "core-telephony", version.ref = "telephony" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

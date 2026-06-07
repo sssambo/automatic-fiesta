@@ -106,10 +106,7 @@ dependencies {
     
     // Encryption (AES-256 via AndroidKeyStore)
     implementation libs.security.crypto
-    
-    // Telephony for device info
-    implementation libs.telephony
-    
+
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core
@@ -117,7 +114,7 @@ dependencies {
     
     implementation 'androidx.recyclerview:recyclerview:1.2.1'
     implementation 'com.gitee.cbfg5210:RVAdapter:0.3.7'
-
+    implementation 'androidx.preference:preference-ktx:1.2.1'
     
     implementation 'com.github.Othershe:CornerLabelView:1.0.0'
     

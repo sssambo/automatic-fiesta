@@ -52,7 +52,6 @@ import black.android.app.BRActivityThreadQ;
 import black.android.app.BRContextImpl;
 import black.android.app.BRLoadedApk;
 import black.android.app.BRService;
-import black.android.app.LoadedApk;
 import black.android.content.BRBroadcastReceiver;
 import black.android.content.BRContentProviderClient;
 import black.android.graphics.BRCompatibility;
@@ -85,7 +84,6 @@ import top.niunaijun.blackbox.utils.compat.BuildCompat;
 import top.niunaijun.blackbox.utils.compat.ContextCompat;
 import top.niunaijun.blackbox.utils.compat.StrictModeCompat;
 import top.niunaijun.blackbox.core.system.JarManager;
-
 
 public class BActivityThread extends IBActivityThread.Stub {
     public static final String TAG = "BActivityThread";
@@ -174,7 +172,6 @@ public class BActivityThread extends IBActivityThread.Stub {
     public void initProcess(AppConfig appConfig) {
         synchronized (mConfigLock) {
             if (this.mAppConfig != null && !this.mAppConfig.packageName.equals(appConfig.packageName)) {
-                
                 throw new RuntimeException("reject init process: " + appConfig.processName + ", this process is : " + this.mAppConfig.processName);
             }
             this.mAppConfig = appConfig;
@@ -211,20 +208,17 @@ public class BActivityThread extends IBActivityThread.Stub {
         try {
             service = (Service) classLoader.loadClass(serviceInfo.name).newInstance();
         } catch (ClassNotFoundException e) {
-            
             if (serviceInfo.name.contains("google.android.gms") || 
                 serviceInfo.name.contains("google.android.location")) {
                 Slog.w(TAG, "Google Play Services class not found, skipping: " + serviceInfo.name);
                 return null;
             }
             e.printStackTrace();
-            Slog.e(TAG, "Unable to instantiate service " + serviceInfo.name
-                    + ": " + e.toString());
+            Slog.e(TAG, "Unable to instantiate service " + serviceInfo.name + ": " + e.toString());
             return null;
         } catch (Exception e) {
             e.printStackTrace();
-            Slog.e(TAG, "Unable to instantiate service " + serviceInfo.name
-                    + ": " + e.toString());
+            Slog.e(TAG, "Unable to instantiate service " + serviceInfo.name + ": " + e.toString());
             return null;
         }
 
@@ -246,7 +240,6 @@ public class BActivityThread extends IBActivityThread.Stub {
             service.onCreate();
             return service;
         } catch (Exception e) {
-            
             if (serviceInfo.name.contains("google.android.gms") || 
                 serviceInfo.name.contains("google.android.location")) {
                 Slog.w(TAG, "Google Play Services service creation failed, skipping: " + serviceInfo.name);
@@ -266,20 +259,17 @@ public class BActivityThread extends IBActivityThread.Stub {
         try {
             service = (JobService) classLoader.loadClass(serviceInfo.name).newInstance();
         } catch (ClassNotFoundException e) {
-            
             if (serviceInfo.name.contains("google.android.gms") || 
                 serviceInfo.name.contains("google.android.location")) {
                 Slog.w(TAG, "Google Play Services JobService class not found, skipping: " + serviceInfo.name);
                 return null;
             }
             e.printStackTrace();
-            Slog.e(TAG, "Unable to create JobService " + serviceInfo.name
-                    + ": " + e.toString());
+            Slog.e(TAG, "Unable to create JobService " + serviceInfo.name + ": " + e.toString());
             return null;
         } catch (Exception e) {
             e.printStackTrace();
-            Slog.e(TAG, "Unable to create JobService " + serviceInfo.name
-                    + ": " + e.toString());
+            Slog.e(TAG, "Unable to create JobService " + serviceInfo.name + ": " + e.toString());
             return null;
         }
 
@@ -302,7 +292,6 @@ public class BActivityThread extends IBActivityThread.Stub {
             service.onBind(null);
             return service;
         } catch (Exception e) {
-            
             if (serviceInfo.name.contains("google.android.gms") || 
                 serviceInfo.name.contains("google.android.location")) {
                 Slog.w(TAG, "Google Play Services JobService creation failed, skipping: " + serviceInfo.name);
@@ -317,90 +306,61 @@ public class BActivityThread extends IBActivityThread.Stub {
         if (Looper.myLooper() != Looper.getMainLooper()) {
             final ConditionVariable conditionVariable = new ConditionVariable();
             BlackBoxCore.get().getHandler().post(() -> {
-                
-                Object bindData = createBindApplicationData(packageName, processName);
                 handleBindApplication(packageName, processName);
                 conditionVariable.open();
             });
             conditionVariable.block();
         } else {
-            
-            Object bindData = createBindApplicationData(packageName, processName);
             handleBindApplication(packageName, processName);
         }
     }
-    
-    
-    private Object createBindApplicationData(String packageName, String processName) {
-        try {
-            
-            PackageInfo packageInfo = BlackBoxCore.getBPackageManager().getPackageInfo(packageName, PackageManager.GET_PROVIDERS, getUserId());
-            ApplicationInfo applicationInfo = packageInfo.applicationInfo;
-            
-            
-            
-            return new Object() {
-                public ApplicationInfo getInfo() { return applicationInfo; }
-                public List<ProviderInfo> getProviders() { 
-                    return packageInfo.providers != null ? Arrays.asList(packageInfo.providers) : new ArrayList<>();
-                }
-            };
-        } catch (Exception e) {
-            Slog.e(TAG, "Error creating bind application data", e);
-            
-            return new Object() {
-                public ApplicationInfo getInfo() { return null; }
-                public List<ProviderInfo> getProviders() { return new ArrayList<>(); }
-            };
-        }
-    }
 
+    // ==================== CORRECTED HANDLE BIND APPLICATION ====================
     public synchronized void handleBindApplication(String packageName, String processName) {
         if (isInit())
-            return; [cite: 365]
+            return;
         try {
-            CrashHandler.create(); [cite: 366]
+            CrashHandler.create();
         } catch (Throwable ignored) {
         }
 
-        PackageInfo packageInfo = BlackBoxCore.getBPackageManager().getPackageInfo(packageName, PackageManager.GET_PROVIDERS, BActivityThread.getUserId()); [cite: 367]
-        ApplicationInfo applicationInfo = packageInfo.applicationInfo; [cite: 368]
+        PackageInfo packageInfo = BlackBoxCore.getBPackageManager().getPackageInfo(packageName, PackageManager.GET_PROVIDERS, BActivityThread.getUserId());
+        ApplicationInfo applicationInfo = packageInfo.applicationInfo;
         if (packageInfo.providers == null) {
-            packageInfo.providers = new ProviderInfo[]{}; [cite: 368]
+            packageInfo.providers = new ProviderInfo[]{};
         }
-        mProviders.addAll(Arrays.asList(packageInfo.providers)); [cite: 369]
+        mProviders.addAll(Arrays.asList(packageInfo.providers));
 
-        Object boundApplication = BRActivityThread.get(BlackBoxCore.mainThread()).mBoundApplication(); [cite: 369]
+        Object boundApplication = BRActivityThread.get(BlackBoxCore.mainThread()).mBoundApplication();
 
-        Context packageContext = createPackageContext(applicationInfo); [cite: 369]
-        Object loadedApk = BRContextImpl.get(packageContext).mPackageInfo(); [cite: 370]
-        BRLoadedApk.get(loadedApk)._set_mSecurityViolation(false); [cite: 370]
-        
-        BRLoadedApk.get(loadedApk)._set_mApplicationInfo(applicationInfo); [cite: 370]
+        Context packageContext = createPackageContext(applicationInfo);
+        Object loadedApk = BRContextImpl.get(packageContext).mPackageInfo();
+        BRLoadedApk.get(loadedApk)._set_mSecurityViolation(false);
+        BRLoadedApk.get(loadedApk)._set_mApplicationInfo(applicationInfo);
 
-        int targetSdkVersion = applicationInfo.targetSdkVersion; [cite: 370]
-        if (targetSdkVersion < Build.VERSION_CODES.GINGERBREAD) { [cite: 371]
-            StrictMode.ThreadPolicy newPolicy = new StrictMode.ThreadPolicy.Builder(StrictMode.getThreadPolicy()).permitNetwork().build(); [cite: 371]
-            StrictMode.setThreadPolicy(newPolicy); [cite: 372]
+        int targetSdkVersion = applicationInfo.targetSdkVersion;
+        if (targetSdkVersion < Build.VERSION_CODES.GINGERBREAD) {
+            StrictMode.ThreadPolicy newPolicy = new StrictMode.ThreadPolicy.Builder(StrictMode.getThreadPolicy()).permitNetwork().build();
+            StrictMode.setThreadPolicy(newPolicy);
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) { [cite: 372]
-            if (targetSdkVersion < Build.VERSION_CODES.N) { [cite: 372]
-                StrictModeCompat.disableDeathOnFileUriExposure(); [cite: 372]
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            if (targetSdkVersion < Build.VERSION_CODES.N) {
+                StrictModeCompat.disableDeathOnFileUriExposure();
             }
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) { [cite: 373]
-            WebView.setDataDirectorySuffix(getUserId() + ":" + packageName + ":" + processName); [cite: 373]
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            WebView.setDataDirectorySuffix(getUserId() + ":" + packageName + ":" + processName);
         }
 
-        VirtualRuntime.setupRuntime(processName, applicationInfo); [cite: 374]
+        VirtualRuntime.setupRuntime(processName, applicationInfo);
 
-        BRVMRuntime.get(BRVMRuntime.get().getRuntime()).setTargetSdkVersion(applicationInfo.targetSdkVersion); [cite: 374]
-        if (BuildCompat.isS()) { [cite: 375]
-            BRCompatibility.get().setTargetSdkVersion(applicationInfo.targetSdkVersion); [cite: 375]
+        BRVMRuntime.get(BRVMRuntime.get().getRuntime()).setTargetSdkVersion(applicationInfo.targetSdkVersion);
+        if (BuildCompat.isS()) {
+            BRCompatibility.get().setTargetSdkVersion(applicationInfo.targetSdkVersion);
         }
 
-        NativeCore.init(Build.VERSION.SDK_INT); [cite: 376]
-        assert packageContext != null; [cite: 376]
+        NativeCore.init(Build.VERSION.SDK_INT);
+        assert packageContext != null;
 
         // =========================================================================
         // MULTISPACE CUSTOM STORAGE INTEGRATION: INJECT OVERRIDES BEFORE IOCORE ENABLES REDIRECT
@@ -413,21 +373,17 @@ public class BActivityThread extends IBActivityThread.Stub {
             if (activeProfile != null) {
                 com.multispace.core.container.FileSystemRedirector redirector = multiSpaceApp.getFileSystemRedirector();
                 
-                // Fetch targeted, resilient isolation paths mapped out for this sandbox instance
                 String persistentDbPath = redirector.getProfileDatabasesPath(activeProfile, packageName);
                 String persistentPrefsPath = redirector.getProfileSharedPrefsPath(activeProfile, packageName);
                 String volatileCachePath = redirector.getProfileCachePath(activeProfile, packageName);
                 
                 Slog.i(TAG, "Injecting resilient anti-cache sub-partitions into BlackBox VFS IO Subsystem.");
                 
-                // Intercept virtual engine environment layers using BlackBox IOCore structures
                 try {
-                    // Overrides the standard /data/data standard maps with chosen tracking profiles
                     IOCore.get().addRedirect("/data/data/" + packageName + "/databases", persistentDbPath);
                     IOCore.get().addRedirect("/data/data/" + packageName + "/shared_prefs", persistentPrefsPath);
                     IOCore.get().addRedirect("/data/data/" + packageName + "/cache", volatileCachePath);
                     
-                    // Standard device protected/external storage fallbacks
                     IOCore.get().addRedirect("/data/user/" + getUserId() + "/" + packageName + "/databases", persistentDbPath);
                     IOCore.get().addRedirect("/data/user/" + getUserId() + "/" + packageName + "/shared_prefs", persistentPrefsPath);
                     
@@ -439,36 +395,34 @@ public class BActivityThread extends IBActivityThread.Stub {
         }
         // =========================================================================
 
-        IOCore.get().enableRedirect(packageContext); [cite: 376]
+        IOCore.get().enableRedirect(packageContext);
 
-        AppBindData bindData = new AppBindData(); [cite: 376]
-        bindData.appInfo = applicationInfo; [cite: 377]
-        bindData.processName = processName; [cite: 377]
-        bindData.info = loadedApk; [cite: 377]
-        bindData.providers = mProviders; [cite: 377]
+        AppBindData bindData = new AppBindData();
+        bindData.appInfo = applicationInfo;
+        bindData.processName = processName;
+        bindData.info = loadedApk;
+        bindData.providers = mProviders;
 
-        ActivityThreadAppBindDataContext activityThreadAppBindData = BRActivityThreadAppBindData.get(boundApplication); [cite: 377]
-        activityThreadAppBindData._set_instrumentationName(new ComponentName(bindData.appInfo.packageName, Instrumentation.class.getName())); [cite: 377]
-        activityThreadAppBindData._set_appInfo(bindData.appInfo); [cite: 377]
-        activityThreadAppBindData._set_info(bindData.info); [cite: 378]
-        activityThreadAppBindData._set_processName(bindData.processName); [cite: 378]
-        activityThreadAppBindData._set_providers(bindData.providers); [cite: 378]
+        ActivityThreadAppBindDataContext activityThreadAppBindData = BRActivityThreadAppBindData.get(boundApplication);
+        activityThreadAppBindData._set_instrumentationName(new ComponentName(bindData.appInfo.packageName, Instrumentation.class.getName()));
+        activityThreadAppBindData._set_appInfo(bindData.appInfo);
+        activityThreadAppBindData._set_info(bindData.info);
+        activityThreadAppBindData._set_processName(bindData.processName);
+        activityThreadAppBindData._set_providers(bindData.providers);
 
-        mBoundApplication = bindData; [cite: 378]
+        mBoundApplication = bindData;
+    } // <-- handleBindApplication closed correctly
 
-    
+    // ==================== HELPER METHODS (class-level) ====================
+
     private void initializeJarEnvironment() {
         try {
             Slog.d(TAG, "Initializing JAR environment for DEX loading");
-            
-            
             JarManager jarManager = JarManager.getInstance();
             if (!jarManager.isReady()) {
                 Slog.d(TAG, "JarManager not ready, initializing synchronously");
                 jarManager.initializeSync();
             }
-            
-            
             File emptyJar = jarManager.getEmptyJar();
             if (emptyJar == null || !emptyJar.exists()) {
                 Slog.w(TAG, "Empty JAR not available, attempting to recreate");
@@ -476,22 +430,18 @@ public class BActivityThread extends IBActivityThread.Stub {
                 jarManager.initializeSync();
                 emptyJar = jarManager.getEmptyJar();
             }
-            
             if (emptyJar != null && emptyJar.exists()) {
                 Slog.d(TAG, "Empty JAR verified: " + emptyJar.getAbsolutePath());
             } else {
                 Slog.w(TAG, "Empty JAR still not available after retry");
             }
-            
         } catch (Exception e) {
             Slog.e(TAG, "Error initializing JAR environment", e);
         }
     }
-    
-    
-    private Application createApplicationWithFallback(android.content.pm.ApplicationInfo appInfo) {
+
+    private Application createApplicationWithFallback(ApplicationInfo appInfo) {
         try {
-            
             Application application = createApplication(appInfo);
             if (application != null) {
                 Slog.d(TAG, "Application created successfully: " + appInfo.className);
@@ -500,29 +450,20 @@ public class BActivityThread extends IBActivityThread.Stub {
         } catch (Exception e) {
             Slog.w(TAG, "Failed to create application normally: " + e.getMessage());
         }
-        
         try {
-            
             Slog.d(TAG, "Attempting fallback application creation");
             ClassLoader classLoader = getClassLoader(appInfo);
             if (classLoader == null) {
                 Slog.w(TAG, "ClassLoader is null, using system class loader");
                 classLoader = ClassLoader.getSystemClassLoader();
             }
-            
             Class<?> appClass = classLoader.loadClass(appInfo.className);
             Application application = (Application) appClass.newInstance();
-            
-            
             ensureApplicationBaseContext(application, appInfo);
-            
             Slog.d(TAG, "Fallback application creation successful");
             return application;
-            
         } catch (Exception e) {
             Slog.e(TAG, "Fallback application creation failed: " + e.getMessage());
-            
-            
             try {
                 Slog.d(TAG, "Creating minimal application wrapper");
                 Application wrapper = new Application() {
@@ -532,10 +473,7 @@ public class BActivityThread extends IBActivityThread.Stub {
                         Slog.d(TAG, "Minimal application wrapper onCreate called");
                     }
                 };
-                
-                
                 ensureApplicationBaseContext(wrapper, appInfo);
-                
                 return wrapper;
             } catch (Exception wrapperException) {
                 Slog.e(TAG, "Failed to create minimal application wrapper", wrapperException);
@@ -543,40 +481,32 @@ public class BActivityThread extends IBActivityThread.Stub {
             }
         }
     }
-    
-    
+
     private void installContentProvidersWithFallback(Application application, Object data) {
         try {
-            List<android.content.pm.ProviderInfo> providers = getProviderInfoList(data);
+            List<ProviderInfo> providers = getProviderInfoList(data);
             if (providers == null || providers.isEmpty()) {
                 Slog.d(TAG, "No content providers to install");
                 return;
             }
-            
             Slog.d(TAG, "Installing " + providers.size() + " content providers");
-            
-            for (android.content.pm.ProviderInfo providerInfo : providers) {
+            for (ProviderInfo providerInfo : providers) {
                 try {
                     installContentProvider(application, providerInfo);
                     Slog.d(TAG, "Successfully installed provider: " + providerInfo.name);
                 } catch (Exception e) {
                     Slog.w(TAG, "Failed to install provider " + providerInfo.name + ": " + e.getMessage());
-                    
                 }
             }
-            
         } catch (Exception e) {
             Slog.e(TAG, "Error installing content providers", e);
         }
     }
-    
-    
-    private android.content.pm.ApplicationInfo getApplicationInfo(Object data) {
+
+    private ApplicationInfo getApplicationInfo(Object data) {
         try {
-            
             if (data != null) {
                 try {
-                    
                     Method getInfoMethod = data.getClass().getMethod("getInfo");
                     ApplicationInfo appInfo = (ApplicationInfo) getInfoMethod.invoke(data);
                     if (appInfo != null) {
@@ -586,31 +516,24 @@ public class BActivityThread extends IBActivityThread.Stub {
                     Slog.w(TAG, "Error getting info from custom data object: " + e.getMessage());
                 }
             }
-            
-            
             String packageName = BlackBoxCore.getAppPackageName();
             if (packageName != null) {
                 PackageInfo packageInfo = BlackBoxCore.getBPackageManager().getPackageInfo(packageName, 0, getUserId());
                 return packageInfo.applicationInfo;
             }
-            
             return null;
         } catch (Exception e) {
             Slog.e(TAG, "Error getting application info", e);
             return null;
         }
     }
-    
-    
-    private ClassLoader getClassLoader(android.content.pm.ApplicationInfo appInfo) {
+
+    private ClassLoader getClassLoader(ApplicationInfo appInfo) {
         try {
-            
             String sourceDir = appInfo.sourceDir;
             if (sourceDir != null) {
                 return new dalvik.system.PathClassLoader(sourceDir, ClassLoader.getSystemClassLoader());
             }
-            
-            
             return ClassLoader.getSystemClassLoader();
         } catch (Exception e) {
             Slog.w(TAG, "Error getting class loader: " + e.getMessage());
@@ -618,48 +541,34 @@ public class BActivityThread extends IBActivityThread.Stub {
         }
     }
 
-    
-    private Application createApplication(android.content.pm.ApplicationInfo appInfo) {
+    private Application createApplication(ApplicationInfo appInfo) {
         try {
-            
             ClassLoader classLoader = getClassLoader(appInfo);
             Class<?> appClass = classLoader.loadClass(appInfo.className);
             Application application = (Application) appClass.newInstance();
-            
-            
             ensureApplicationBaseContext(application, appInfo);
-            
             return application;
         } catch (Exception e) {
             Slog.e(TAG, "Error creating application: " + e.getMessage());
             return null;
         }
     }
-    
-    
-    private void ensureApplicationBaseContext(Application application, android.content.pm.ApplicationInfo appInfo) {
+
+    private void ensureApplicationBaseContext(Application application, ApplicationInfo appInfo) {
         try {
-            
             if (application.getBaseContext() != null) {
                 Slog.d(TAG, "Application already has base context: " + appInfo.className);
                 return;
             }
-            
-            
             Context packageContext = createPackageContext(appInfo);
             if (packageContext == null) {
                 Slog.w(TAG, "Could not create package context for application: " + appInfo.className + ", using fallback");
-                
                 packageContext = createFallbackContext(appInfo.packageName);
             }
-            
-            
             if (packageContext == null) {
                 Slog.e(TAG, "Failed to create any context for application: " + appInfo.className);
                 return;
             }
-            
-            
             try {
                 Method attachBaseContext = Application.class.getDeclaredMethod("attachBaseContext", Context.class);
                 attachBaseContext.setAccessible(true);
@@ -668,13 +577,11 @@ public class BActivityThread extends IBActivityThread.Stub {
             } catch (Exception e) {
                 Slog.w(TAG, "Could not attach base context to application: " + e.getMessage());
             }
-            
         } catch (Exception e) {
             Slog.e(TAG, "Error ensuring application base context: " + e.getMessage());
         }
     }
-    
-    
+
     private Context createFallbackContext(String packageName) {
         try {
             Context baseContext = BlackBoxCore.getContext();
@@ -682,16 +589,13 @@ public class BActivityThread extends IBActivityThread.Stub {
                 Slog.e(TAG, "BlackBoxCore.getContext() is null, cannot create fallback context");
                 return null;
             }
-            
-            
             return new ContextWrapper(baseContext) {
                 @Override
                 public String getPackageName() {
                     return packageName;
                 }
-                
                 @Override
-                public android.content.pm.PackageManager getPackageManager() {
+                public PackageManager getPackageManager() {
                     try {
                         return baseContext.getPackageManager();
                     } catch (Exception e) {
@@ -699,22 +603,20 @@ public class BActivityThread extends IBActivityThread.Stub {
                         return null;
                     }
                 }
-                
                 @Override
-                public android.content.res.Resources getResources() {
+                public Resources getResources() {
                     try {
                         return baseContext.getResources();
                     } catch (Exception e) {
                         Slog.w(TAG, "Error getting resources from base context: " + e.getMessage());
                         try {
-                            return android.content.res.Resources.getSystem();
+                            return Resources.getSystem();
                         } catch (Exception e2) {
                             Slog.e(TAG, "Error getting system resources: " + e2.getMessage());
                             return null;
                         }
                     }
                 }
-                
                 @Override
                 public ClassLoader getClassLoader() {
                     try {
@@ -729,7 +631,6 @@ public class BActivityThread extends IBActivityThread.Stub {
                         }
                     }
                 }
-                
                 @Override
                 public Context getApplicationContext() {
                     try {
@@ -745,14 +646,11 @@ public class BActivityThread extends IBActivityThread.Stub {
             return null;
         }
     }
-    
-    
-    private List<android.content.pm.ProviderInfo> getProviderInfoList(Object data) {
+
+    private List<ProviderInfo> getProviderInfoList(Object data) {
         try {
-            
             if (data != null) {
                 try {
-                    
                     Method getProvidersMethod = data.getClass().getMethod("getProviders");
                     List<ProviderInfo> providers = (List<ProviderInfo>) getProvidersMethod.invoke(data);
                     if (providers != null) {
@@ -762,48 +660,32 @@ public class BActivityThread extends IBActivityThread.Stub {
                     Slog.w(TAG, "Error getting providers from custom data object: " + e.getMessage());
                 }
             }
-            
-            
             return new ArrayList<>();
         } catch (Exception e) {
             Slog.e(TAG, "Error getting provider info list", e);
             return new ArrayList<>();
         }
     }
-    
-    
-    private void installContentProvider(Application application, android.content.pm.ProviderInfo providerInfo) {
+
+    private void installContentProvider(Application application, ProviderInfo providerInfo) {
         try {
-            
             if (application == null) {
                 Slog.w(TAG, "Application is null, cannot install content provider: " + providerInfo.name);
                 return;
             }
-            
-            
             ClassLoader classLoader = application.getClassLoader();
             if (classLoader == null) {
                 Slog.w(TAG, "Application class loader is null, using system class loader for: " + providerInfo.name);
                 classLoader = ClassLoader.getSystemClassLoader();
             }
-            
-            
-            android.content.ContentProvider provider = (android.content.ContentProvider) classLoader
-                .loadClass(providerInfo.name).newInstance();
-            
-            
+            ContentProvider provider = (ContentProvider) classLoader.loadClass(providerInfo.name).newInstance();
             provider.attachInfo(application, providerInfo);
-            
-            
-            
             Slog.d(TAG, "Content provider installed: " + providerInfo.name);
-            
         } catch (Exception e) {
             Slog.e(TAG, "Error installing content provider " + providerInfo.name, e);
         }
     }
-    
-    
+
     private void setApplication(Application application) {
         try {
             mInitialApplication = application;
@@ -816,24 +698,18 @@ public class BActivityThread extends IBActivityThread.Stub {
 
     private void handleSecurityException(SecurityException se, String packageName, String processName, Context packageContext) {
         Slog.w(TAG, "Handling SecurityException for " + packageName);
-        
-        
         try {
-                            Application basicApp = createMinimalApplication(packageContext, packageName);
+            Application basicApp = createMinimalApplication(packageContext, packageName);
             if (basicApp != null) {
                 mInitialApplication = basicApp;
                 BRActivityThread.get(BlackBoxCore.mainThread())._set_mInitialApplication(mInitialApplication);
                 ContextCompat.fix(mInitialApplication);
-                
-                
                 Slog.w(TAG, "Created basic application, skipping problematic operations");
                 return;
             }
         } catch (Exception e) {
             Slog.e(TAG, "Failed to create basic application after SecurityException: " + e.getMessage());
         }
-        
-        
         throw new RuntimeException("Unable to handle SecurityException", se);
     }
 
@@ -848,10 +724,8 @@ public class BActivityThread extends IBActivityThread.Stub {
                     }
                 } catch (SecurityException se) {
                     Slog.w(TAG, "SecurityException installing provider " + providerInfo.name + ": " + se.getMessage());
-                    
                 } catch (Throwable t) {
                     Slog.w(TAG, "Error installing provider " + providerInfo.name + ": " + t.getMessage());
-                    
                 }
             }
         } finally {
@@ -874,13 +748,9 @@ public class BActivityThread extends IBActivityThread.Stub {
         return null;
     }
 
-    
     private static Context createMinimalPackageContext(ApplicationInfo info) {
         try {
-            
             Context baseContext = BlackBoxCore.getContext();
-            
-            
             try {
                 Context packageContext = baseContext.createPackageContext(info.packageName, 0);
                 if (packageContext != null) {
@@ -890,8 +760,6 @@ public class BActivityThread extends IBActivityThread.Stub {
             } catch (Exception e) {
                 Slog.w(TAG, "Failed to create package context with minimal flags for " + info.packageName + ": " + e.getMessage());
             }
-            
-            
             try {
                 Context packageContext = baseContext.createPackageContext(info.packageName, Context.CONTEXT_IGNORE_SECURITY);
                 if (packageContext != null) {
@@ -901,8 +769,6 @@ public class BActivityThread extends IBActivityThread.Stub {
             } catch (Exception e) {
                 Slog.w(TAG, "Failed to create package context with ignore security for " + info.packageName + ": " + e.getMessage());
             }
-            
-            
             try {
                 Context packageContext = baseContext.createPackageContext(info.packageName, Context.CONTEXT_INCLUDE_CODE);
                 if (packageContext != null) {
@@ -912,43 +778,33 @@ public class BActivityThread extends IBActivityThread.Stub {
             } catch (Exception e) {
                 Slog.w(TAG, "Failed to create package context with include code for " + info.packageName + ": " + e.getMessage());
             }
-            
         } catch (Exception e) {
             Slog.e(TAG, "Failed to create minimal package context for " + info.packageName + ": " + e.getMessage());
         }
-        
-        
         Slog.w(TAG, "Using base context as fallback for " + info.packageName);
         return createWrappedBaseContext(info.packageName);
     }
 
-    
     private static Context createWrappedBaseContext(String packageName) {
         try {
             Context baseContext = BlackBoxCore.getContext();
-            
-            
             return new ContextWrapper(baseContext) {
                 @Override
                 public String getPackageName() {
                     return packageName;
                 }
-                
                 @Override
                 public PackageManager getPackageManager() {
                     return baseContext.getPackageManager();
                 }
-                
                 @Override
                 public Resources getResources() {
                     return baseContext.getResources();
                 }
-                
                 @Override
                 public ClassLoader getClassLoader() {
                     return baseContext.getClassLoader();
                 }
-                
                 @Override
                 public Context getApplicationContext() {
                     return baseContext.getApplicationContext();
@@ -956,7 +812,6 @@ public class BActivityThread extends IBActivityThread.Stub {
             };
         } catch (Exception e) {
             Slog.e(TAG, "Failed to create wrapped base context for " + packageName + ": " + e.getMessage());
-            
             return BlackBoxCore.getContext();
         }
     }
@@ -991,8 +846,6 @@ public class BActivityThread extends IBActivityThread.Stub {
         }
     }
 
-
-
     @Override
     public IBinder getActivityThread() {
         return BRActivityThread.get(BlackBoxCore.mainThread()).getApplicationThread();
@@ -1012,7 +865,6 @@ public class BActivityThread extends IBActivityThread.Stub {
 
     @Override
     public void restartJobService(String selfId) throws RemoteException {
-
     }
 
     @Override
@@ -1047,11 +899,9 @@ public class BActivityThread extends IBActivityThread.Stub {
             if (clientRecord == null)
                 return;
             Activity activity = getActivityByToken(token);
-
             while (activity.getParent() != null) {
                 activity = activity.getParent();
             }
-
             int resultCode = BRActivity.get(activity).mResultCode();
             Intent resultData = BRActivity.get(activity).mResultData();
             ActivityManagerCompat.finishActivity(token, resultCode, resultData);
@@ -1070,15 +920,9 @@ public class BActivityThread extends IBActivityThread.Stub {
             }
             Object mainThread = BlackBoxCore.mainThread();
             if (BRActivityThread.get(BlackBoxCore.mainThread())._check_performNewIntents(null, null) != null) {
-                BRActivityThread.get(mainThread).performNewIntents(
-                        token,
-                        Collections.singletonList(newIntent)
-                );
+                BRActivityThread.get(mainThread).performNewIntents(token, Collections.singletonList(newIntent));
             } else if (BRActivityThreadNMR1.get(mainThread)._check_performNewIntents(null, null, false) != null) {
-                BRActivityThreadNMR1.get(mainThread).performNewIntents(
-                        token,
-                        Collections.singletonList(newIntent),
-                        true);
+                BRActivityThreadNMR1.get(mainThread).performNewIntents(token, Collections.singletonList(newIntent), true);
             } else if (BRActivityThreadQ.get(mainThread)._check_handleNewIntent(null, null) != null) {
                 BRActivityThreadQ.get(mainThread).handleNewIntent(token, Collections.singletonList(newIntent));
             }
@@ -1095,12 +939,10 @@ public class BActivityThread extends IBActivityThread.Stub {
             Intent intent = data.intent;
             ActivityInfo activityInfo = data.activityInfo;
             BroadcastReceiver.PendingResult pendingResult = data.data.build();
-
             try {
                 Context baseContext = mInitialApplication.getBaseContext();
                 ClassLoader classLoader = baseContext.getClassLoader();
                 intent.setExtrasClassLoader(classLoader);
-
                 mReceiver = (BroadcastReceiver) classLoader.loadClass(activityInfo.name).newInstance();
                 BRBroadcastReceiver.get(mReceiver).setPendingResult(pendingResult);
                 mReceiver.onReceive(baseContext, intent);
@@ -1111,16 +953,13 @@ public class BActivityThread extends IBActivityThread.Stub {
                 BlackBoxCore.getBActivityManager().finishBroadcast(data.data);
             } catch (Throwable throwable) {
                 throwable.printStackTrace();
-                Slog.e(TAG,
-                        "Error receiving broadcast " + intent
-                                + " in " + mReceiver);
+                Slog.e(TAG, "Error receiving broadcast " + intent + " in " + mReceiver);
             }
         });
     }
 
     public static Activity getActivityByToken(IBinder token) {
-        Map<IBinder, Object> iBinderObjectMap =
-                BRActivityThread.get(BlackBoxCore.mainThread()).mActivities();
+        Map<IBinder, Object> iBinderObjectMap = BRActivityThread.get(BlackBoxCore.mainThread()).mActivities();
         return BRActivityThreadActivityClientRecord.get(iBinderObjectMap.get(token)).activity();
     }
 
@@ -1142,23 +981,17 @@ public class BActivityThread extends IBActivityThread.Stub {
         }
     }
 
-    
     public static void ensureActivityContext(Activity activity) {
         if (activity == null) {
             return;
         }
-        
         try {
-            
             Context currentContext = activity.getBaseContext();
             if (currentContext != null) {
                 Slog.d(TAG, "Activity already has context: " + activity.getClass().getName());
                 return;
             }
-            
             Slog.w(TAG, "Activity has null context, ensuring valid context: " + activity.getClass().getName());
-            
-            
             Context validContext = null;
             try {
                 validContext = getApplication();
@@ -1169,17 +1002,11 @@ public class BActivityThread extends IBActivityThread.Stub {
                 Slog.w(TAG, "Could not get application context: " + e.getMessage());
                 validContext = BlackBoxCore.getContext();
             }
-            
             if (validContext != null) {
-                
                 try {
-                    Context packageContext = validContext.createPackageContext(
-                        activity.getPackageName(),
-                        Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY
-                    );
-                    
-                    
-                    java.lang.reflect.Method attachBaseContext = Activity.class.getDeclaredMethod("attachBaseContext", Context.class);
+                    Context packageContext = validContext.createPackageContext(activity.getPackageName(),
+                            Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY);
+                    Method attachBaseContext = Activity.class.getDeclaredMethod("attachBaseContext", Context.class);
                     attachBaseContext.setAccessible(true);
                     attachBaseContext.invoke(activity, packageContext);
                     Slog.d(TAG, "Successfully attached package context to activity: " + activity.getClass().getName());
@@ -1192,22 +1019,15 @@ public class BActivityThread extends IBActivityThread.Stub {
         }
     }
 
-    
     public static void hookActivityThread() {
         try {
-            
             Object activityThread = BlackBoxCore.mainThread();
             if (activityThread != null) {
-                
                 Instrumentation instrumentation = BRActivityThread.get(activityThread).mInstrumentation();
                 if (instrumentation != null) {
                     Slog.d(TAG, "Found ActivityThread instrumentation, ensuring it's our AppInstrumentation");
-                    
-                    
                     if (!(instrumentation instanceof AppInstrumentation)) {
                         Slog.w(TAG, "ActivityThread instrumentation is not our AppInstrumentation, attempting to replace");
-                        
-                        
                         try {
                             AppInstrumentation appInstrumentation = AppInstrumentation.get();
                             appInstrumentation.injectHook();
@@ -1229,31 +1049,24 @@ public class BActivityThread extends IBActivityThread.Stub {
         }
     }
 
-    
     private Application createMinimalApplication(Context packageContext, String packageName) {
         try {
             Slog.d(TAG, "Creating minimal application for " + packageName);
-            
-            
             Application app = new Application() {
                 @Override
                 public void onCreate() {
                     super.onCreate();
                     Slog.d(TAG, "Minimal application onCreate called for " + packageName);
                 }
-                
                 @Override
                 public String getPackageName() {
                     return packageName;
                 }
-                
                 @Override
                 public Context getApplicationContext() {
                     return this;
                 }
             };
-            
-            
             if (packageContext != null) {
                 try {
                     Method attachBaseContext = Application.class.getDeclaredMethod("attachBaseContext", Context.class);
@@ -1266,7 +1079,6 @@ public class BActivityThread extends IBActivityThread.Stub {
             } else {
                 Slog.w(TAG, "Package context is null, cannot attach base context to minimal application");
             }
-            
             Slog.d(TAG, "Minimal application created successfully for " + packageName);
             return app;
         } catch (Exception e) {

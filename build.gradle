@@ -6,12 +6,22 @@ alias(libs.plugins.android.application) apply false
 }
 
 ext {
-    compileSdkVersion = 35
-    targetSdkVersion = 30    // Android 11 target
-
-    minSdk = 30              // Android 11 minimum
+    compileSdkVersion = 34
+    targetSdkVersion = 34    // Android 14 target
+    minSdk = 29              // Android 10 minimum
     versionCode = 400
     versionName = "4.0.0"
     xVersion = '1.1.0'
     hiddenApiBypass = '4.3'
+    ndkVersion = "25.1.8937393"
+    
+    // ✅ CORRECTED PATH CONCATENATION:
+    def ndkHome = System.getenv("ANDROID_NDK_HOME")
+    if (ndkHome != null) {
+        // Safe interpolation using standard forward-slash inside a string
+        ndkPath = file("${ndkHome}/ndk")
+    } else {
+        // Highly recommended fallback so the build doesn't crash if your terminal environment shifts
+        ndkPath = file("/home/vscode/android-sdk/ndk/25.1.8937393")
+    }
 }
